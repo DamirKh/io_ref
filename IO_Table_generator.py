@@ -49,6 +49,8 @@ def RUS_comment_decoder(comment: str):
     """ Decode russian comments"""
     # $0422$0435$043a$0443$0449$0430$044f $0441$0442$0435$043f$0435$043d$044c $043e$0442$043a$0440$044b$0442$0438$044f, %
     # Текущая степень открытия, %
+    if comment is None:
+        return ""
     out = ''
     pos=0
     try:
@@ -190,57 +192,94 @@ def read_input_csv(filename, map_file_name=None, old_csv_version = False):
 
         print(f'Total: {total_points_counter} points found')
 
-def read_input_l5x(l5x_path, test_run = False):
+def read_input_l5x(l5x_path, map_file_name=None, test_run=False):
+    """Read tags from L5X XML file and fill io_config/io_description."""
+    global io_config
+    global io_description
+
     print(f"Reading L5X XML file: {l5x_path}")
     project = l5x.Project(l5x_path)
     print(f"L5X project loaded: {project}")
-    if test_run:
-        aliases_tags_counter = 0
-        base_tags_counter = 0
-        print('*** CONTROLLER ***')
-        for tag_name in project.controller.tags.names:
+
+    # Если есть mapping-файл — подключаем его
+    if map_file_name:
+        n11 = n11mapping(map_file_name)
+        map_func = n11.replace
+    else:
+        map_func = lambda s: s
+
+    total_points_counter = 0
+
+    # --- 1. Контроллерные теги ---
+    for tag_name in project.controller.tags.names:
+        try:
+            tag = project.controller.tags[tag_name]
+            alias = getattr(tag, 'alias_for', None)
+            description = RUS_comment_decoder(getattr(tag, 'description', ""))
+        except RuntimeError:
+            continue
+
+        if alias and ':' in alias:
+            process_alias_tag(tag_name, alias, description, map_func)
+            total_points_counter += 1
+
+    # --- 2. Теги в программах ---
+    for prog in project.programs.names:
+        for tag_name in project.programs[prog].tags.names:
             try:
-                tag = project.controller.tags[tag_name]
+                tag = project.programs[prog].tags[tag_name]
                 alias = getattr(tag, 'alias_for', None)
-                description = getattr(tag, 'description', "")
-
+                description = RUS_comment_decoder(getattr(tag, 'description', ""))
             except RuntimeError:
-                # print(tag)
                 continue
-            if alias:
-                aliases_tags_counter +=1
-                if ':' in alias:
-                    print(f"/{tag_name}  -->  {alias}  ({description})")
-                    # print(f"{tag_name}  -->  {alias}")
-            else:
-                base_tags_counter +=1
-        print(f"{aliases_tags_counter} aliases tags")
-        print(f"{base_tags_counter} base tags")
 
-        print('\n*** PROGRAMS ***')
-        aliases_tags_counter = 0
-        base_tags_counter = 0
-        for prog in project.programs.names:
-            for tag_name in project.programs[prog].tags.names:
-                if tag_name == "HSL1001":
-                    pass
-                try:
-                    tag = project.programs[prog].tags[tag_name]
-                    alias = getattr(tag, 'alias_for', None)
-                    description = getattr(tag, 'description', "")
-                except RuntimeError:
-                    # print(tag)
-                    continue
-                if alias:
-                    aliases_tags_counter += 1
-                    if ':' in alias:
-                        print(f"{prog}/{tag_name}  -->  {alias}  ({description})")
-                else:
-                    base_tags_counter += 1
-        print(f"{aliases_tags_counter} aliases tags")
-        print(f"{base_tags_counter} base tags")
+            if alias and ':' in alias:
+                process_alias_tag(f"{prog}/{tag_name}", alias, description, map_func)
+                total_points_counter += 1
 
-    pass
+    print(f"Total {total_points_counter} alias tags processed.")
+
+def process_alias_tag(tag_name, alias, description, map_func):
+    """Helper for read_input_l5x — parse IO address and fill io_config/io_description."""
+    global io_config
+    global io_description
+
+    alias_mapped = map_func(alias)
+    parts = alias_mapped.split(':', 2)
+    if len(parts) < 3:
+        return
+
+    chass, slot, path = parts[0], parts[1], parts[2]
+
+    try:
+        slot_num = int(slot)
+    except ValueError:
+        return
+
+    append_chass(chass, slot_num)
+
+    # пример path: "I.Ch3Data" или "I.Data.12"
+    last_part = path.split('.', 2)
+
+    if len(last_part) == 3:  # "I.Data.12"
+        if last_part[0] in ('I', 'O') and last_part[1] == 'Data':
+            try:
+                point = int(last_part[2])
+                io_config[chass][slot_num][point] = tag_name
+                io_description[chass][slot_num][point] = description
+            except ValueError:
+                pass
+
+    elif len(last_part) == 2:  # "I.Ch3Data" или "I.4"
+        if last_part[0] in ('I', 'O'):
+            ch = last_part[1]
+            if ch.startswith('Ch') and ch[2:-4].isdigit():
+                point = int(ch[2:-4])
+                io_config[chass][slot_num][point] = tag_name
+                io_description[chass][slot_num][point] = description
+            elif ch.isdigit():
+                io_config[chass][slot_num][int(ch)] = tag_name
+                io_description[chass][slot_num][int(ch)] = description
 
 def write_table():
     global io_config
@@ -363,7 +402,7 @@ def write_xlsx(out_file_name):
     worksheet.write_datetime(0, 1, datetime.datetime.now(), date_format)
 
     worksheet.write_string(1, 0, 'Original input file name')
-    worksheet.write_string(1, 1, out_file_name)
+    worksheet.write_string(1, 1, str(out_file_name))
 
 
 
