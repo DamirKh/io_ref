@@ -195,8 +195,51 @@ def read_input_l5x(l5x_path, test_run = False):
     project = l5x.Project(l5x_path)
     print(f"L5X project loaded: {project}")
     if test_run:
-        tag = project.controller.tags['DT0521']
-        print(tag)
+        aliases_tags_counter = 0
+        base_tags_counter = 0
+        print('*** CONTROLLER ***')
+        for tag_name in project.controller.tags.names:
+            try:
+                tag = project.controller.tags[tag_name]
+                alias = getattr(tag, 'alias_for', None)
+                description = getattr(tag, 'description', "")
+
+            except RuntimeError:
+                # print(tag)
+                continue
+            if alias:
+                aliases_tags_counter +=1
+                if ':' in alias:
+                    print(f"/{tag_name}  -->  {alias}  ({description})")
+                    # print(f"{tag_name}  -->  {alias}")
+            else:
+                base_tags_counter +=1
+        print(f"{aliases_tags_counter} aliases tags")
+        print(f"{base_tags_counter} base tags")
+
+        print('\n*** PROGRAMS ***')
+        aliases_tags_counter = 0
+        base_tags_counter = 0
+        for prog in project.programs.names:
+            for tag_name in project.programs[prog].tags.names:
+                if tag_name == "HSL1001":
+                    pass
+                try:
+                    tag = project.programs[prog].tags[tag_name]
+                    alias = getattr(tag, 'alias_for', None)
+                    description = getattr(tag, 'description', "")
+                except RuntimeError:
+                    # print(tag)
+                    continue
+                if alias:
+                    aliases_tags_counter += 1
+                    if ':' in alias:
+                        print(f"{prog}/{tag_name}  -->  {alias}  ({description})")
+                else:
+                    base_tags_counter += 1
+        print(f"{aliases_tags_counter} aliases tags")
+        print(f"{base_tags_counter} base tags")
+
     pass
 
 def write_table():
@@ -487,6 +530,7 @@ if __name__ == '__main__':
     # write_table_compact()
     #write_csv_cspt(sep=':')
     if not args.noxls:
-        write_xlsx(args.input_file + '.xlsx')
+        out_xlsx = input_path.with_suffix('.xlsx')
+        write_xlsx(out_xlsx)
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
