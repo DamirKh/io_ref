@@ -1,0 +1,2 @@
+xlsxwriter
+git+https://github.com/DamirKh/l5x.git@master#egg=l5x
