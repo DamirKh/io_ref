@@ -192,7 +192,7 @@ def read_input_csv(filename, map_file_name=None, old_csv_version = False):
 
         print(f'Total: {total_points_counter} points found')
 
-def read_input_l5x(l5x_path, map_file_name=None, test_run=False):
+def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
     """Read tags from L5X XML file and fill io_config/io_description."""
     global io_config
     global io_description
@@ -201,7 +201,6 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False):
     project = l5x.Project(l5x_path)
     print(f"L5X project loaded: {project}")
 
-    # Если есть mapping-файл — подключаем его
     if map_file_name:
         n11 = n11mapping(map_file_name)
         map_func = n11.replace
@@ -209,6 +208,8 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False):
         map_func = lambda s: s
 
     total_points_counter = 0
+    parsed_counter = 0
+    skipped_counter = 0
 
     # --- 1. Контроллерные теги ---
     for tag_name in project.controller.tags.names:
@@ -220,7 +221,11 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False):
             continue
 
         if alias and ':' in alias:
-            process_alias_tag(tag_name, alias, description, map_func)
+            ok = process_alias_tag(tag_name, alias, description, map_func, debug)
+            if ok:
+                parsed_counter += 1
+            else:
+                skipped_counter += 1
             total_points_counter += 1
 
     # --- 2. Теги в программах ---
@@ -234,52 +239,92 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False):
                 continue
 
             if alias and ':' in alias:
-                process_alias_tag(f"{prog}/{tag_name}", alias, description, map_func)
+                ok = process_alias_tag(f"{prog}/{tag_name}", alias, description, map_func, debug)
+                if ok:
+                    parsed_counter += 1
+                else:
+                    skipped_counter += 1
                 total_points_counter += 1
 
-    print(f"Total {total_points_counter} alias tags processed.")
+    print(f"\nTotal {total_points_counter} alias tags processed.")
+    print(f"  ✅ Parsed successfully: {parsed_counter}")
+    print(f"  ⚠️  Skipped (unrecognized format): {skipped_counter}")
 
-def process_alias_tag(tag_name, alias, description, map_func):
-    """Helper for read_input_l5x — parse IO address and fill io_config/io_description."""
+
+import re
+
+def process_alias_tag(tag_name, alias, description, map_func, debug=False):
+    """Parse IO alias address and fill io_config/io_description structures."""
     global io_config
     global io_description
 
     alias_mapped = map_func(alias)
     parts = alias_mapped.split(':', 2)
     if len(parts) < 3:
-        return
+        if debug:
+            print(f"  ❌ Skipped [{tag_name}] — invalid alias format: {alias}")
+        return False
 
-    chass, slot, path = parts[0], parts[1], parts[2]
+    chass, slot_str, path = parts[0], parts[1], parts[2]
 
     try:
-        slot_num = int(slot)
+        slot = int(slot_str)
     except ValueError:
-        return
+        if debug:
+            print(f"  ❌ Skipped [{tag_name}] — invalid slot number: {slot_str}")
+        return False
 
-    append_chass(chass, slot_num)
+    append_chass(chass, slot)
 
-    # пример path: "I.Ch3Data" или "I.Data.12"
-    last_part = path.split('.', 2)
+    # --- Распознавание форматов каналов ---
+    # ✅ Поддерживаются:
+    #   I.0, O.15
+    #   I.Ch14Data, O.Ch10Data
+    #   I.Ch[2].Data, O.Channel3Data
+    #   I.Data.3, O.Data.15
+    # 🚫 Игнорируются Fault, Status, Cfg и т.д.
+    match = re.search(r"""
+        ^[IO]\.?                                  # Префикс I. или O.
+        (?:
+            # Вариант 1: I.0 / O.15
+            (?P<num1>\d{1,3})$
+          |
+            # Вариант 2: I.Ch14Data / O.Channel3Data / I.Ch[2].Data
+            (?:Ch(?:annel)?\[?(?P<num2>\d{1,3})\]?(?:Data|\.[Dd]ata)?)$
+          |
+            # Вариант 3: I.Data.3 / O.Data.15
+            [Dd]ata\.(?P<num3>\d{1,3})$
+        )
+    """, path, re.IGNORECASE | re.VERBOSE)
 
-    if len(last_part) == 3:  # "I.Data.12"
-        if last_part[0] in ('I', 'O') and last_part[1] == 'Data':
-            try:
-                point = int(last_part[2])
-                io_config[chass][slot_num][point] = tag_name
-                io_description[chass][slot_num][point] = description
-            except ValueError:
-                pass
+    if not match:
+        if debug:
+            print(f"  ⚠️  Skipped non-IO tag [{tag_name}] → {alias_mapped}")
+        return False
 
-    elif len(last_part) == 2:  # "I.Ch3Data" или "I.4"
-        if last_part[0] in ('I', 'O'):
-            ch = last_part[1]
-            if ch.startswith('Ch') and ch[2:-4].isdigit():
-                point = int(ch[2:-4])
-                io_config[chass][slot_num][point] = tag_name
-                io_description[chass][slot_num][point] = description
-            elif ch.isdigit():
-                io_config[chass][slot_num][int(ch)] = tag_name
-                io_description[chass][slot_num][int(ch)] = description
+    channel_str = match.group("num1") or match.group("num2") or match.group("num3")
+    try:
+        point = int(channel_str)
+    except (ValueError, TypeError):
+        if debug:
+            print(f"  ❌ Invalid channel number in [{tag_name}] → {alias_mapped}")
+        return False
+
+    # Исключаем служебные сигналы (Fault, Status, Config)
+    if re.search(r"(Fault|Status|Cfg|Config)", path, re.IGNORECASE):
+        if debug:
+            print(f"  🚫 Skipped service tag [{tag_name}] → {alias_mapped}")
+        return False
+
+    io_config[chass][slot][point] = tag_name
+    io_description[chass][slot][point] = description
+
+    if debug:
+        print(f"  ✅ Parsed [{tag_name}] → {chass}:{slot}:{point} ({path})")
+
+    return True
+
+
 
 def write_table():
     global io_config
@@ -505,6 +550,7 @@ if __name__ == '__main__':
     parser.add_argument('input_file', nargs='?', help="CSV or L5X file exported from RSLogix / Studio 5000")
     # parser.add_argument('input_csv', nargs='?', help="CSV file, exported from RSLogix")
     parser.add_argument('map', nargs='?', help="Substitution file (for N11/N68 mapping)")
+    parser.add_argument('--debug', action='store_true', help="Show detailed tag parsing log")
     parser.add_argument('--old', action='store_true', help="CSV was generated by old version of RSLogix")
     parser.add_argument('--noxls', action='store_true', help="Do not write XLSX file")
     parser.add_argument('--test_run', action='store_true', help="Run test")
@@ -556,7 +602,7 @@ if __name__ == '__main__':
 
     elif ext == '.l5x':
         print("Detected L5X input file.")
-        read_input_l5x(args.input_file, test_run=args.test_run)
+        read_input_l5x(args.input_file, map_file_name=args.map, test_run=args.test_run, debug=args.debug)
 
     else:
         print(f"Unsupported file type: {ext}")
