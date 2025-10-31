@@ -211,29 +211,14 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
     parsed_counter = 0
     skipped_counter = 0
 
-    # --- 1. Контроллерные теги ---
-    for tag_name in project.controller.tags.names:
-        try:
-            tag = project.controller.tags[tag_name]
-            alias = getattr(tag, 'alias_for', None)
-            description = RUS_comment_decoder(getattr(tag, 'description', ""))
-        except RuntimeError:
-            continue
-
-        if alias and ':' in alias:
-            ok = process_alias_tag(tag_name, alias, description, map_func, debug)
-            if ok:
-                parsed_counter += 1
-            else:
-                skipped_counter += 1
-            total_points_counter += 1
-
     # --- 2. Теги в программах ---
     for prog in project.programs.names:
         for tag_name in project.programs[prog].tags.names:
             try:
                 tag = project.programs[prog].tags[tag_name]
                 alias = getattr(tag, 'alias_for', None)
+                if alias:
+                    alias = map_func(alias)
                 description = RUS_comment_decoder(getattr(tag, 'description', ""))
             except RuntimeError:
                 continue
@@ -246,6 +231,28 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
                     skipped_counter += 1
                 total_points_counter += 1
 
+    # --- 1. Контроллерные теги ---
+    for tag_name in project.controller.tags.names:
+        # trap for debug
+        if tag_name == 'XA_DC1':
+            pass
+        try:
+            tag = project.controller.tags[tag_name]
+            alias = getattr(tag, 'alias_for', None)
+            if alias:
+                alias = map_func(alias)
+            description = RUS_comment_decoder(getattr(tag, 'description', ""))
+        except RuntimeError:
+            continue
+
+        if alias and ':' in alias:
+            ok = process_alias_tag(tag_name, alias, description, map_func, debug)
+            if ok:
+                parsed_counter += 1
+            else:
+                skipped_counter += 1
+            total_points_counter += 1
+
     print(f"\nTotal {total_points_counter} alias tags processed.")
     print(f"  ✅ Parsed successfully: {parsed_counter}")
     print(f"  ⚠️  Skipped (unrecognized format): {skipped_counter}")
@@ -253,47 +260,62 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
 
 import re
 
+import re
+
 def process_alias_tag(tag_name, alias, description, map_func, debug=False):
-    """Parse IO alias address and fill io_config/io_description structures."""
-    global io_config
-    global io_description
+    """Parse IO alias address (supports RIO, FlexBus, and short formats)."""
+    global io_config, io_description
 
     alias_mapped = map_func(alias)
-    parts = alias_mapped.split(':', 2)
-    if len(parts) < 3:
+    parts = alias_mapped.split(':')
+
+    chass = None
+    slot = None
+    path = None
+
+    # --- Вариант 1: стандартный RIO_xx:x:O.Data.0 ---
+    if len(parts) == 3:
+        chass, slot_str, path = parts
+        try:
+            slot = int(slot_str)
+            append_chass(chass, slot)
+        except ValueError:
+            if debug:
+                print(f"  ❌ Skipped [{tag_name}] — invalid slot number: {alias_mapped}")
+            return False
+
+    # --- Вариант 2: короткий формат SD_Console:I.Data[0].0 ---
+    elif len(parts) == 2:
+        chass, path = parts
+        slot = None  # определяем ниже из Data[...]
         if debug:
-            print(f"  ❌ Skipped [{tag_name}] — invalid alias format: {alias}")
+            print(f"  🟡 Detected short format [{alias_mapped}], slot будет определён из [{path}]")
+
+    else:
+        if debug:
+            print(f"  ❌ Skipped [{tag_name}] — invalid alias format: {alias_mapped}")
         return False
 
-    chass, slot_str, path = parts[0], parts[1], parts[2]
 
-    try:
-        slot = int(slot_str)
-    except ValueError:
-        if debug:
-            print(f"  ❌ Skipped [{tag_name}] — invalid slot number: {slot_str}")
-        return False
 
-    append_chass(chass, slot)
+    # --- Распознавание каналов и слотов (включая FlexBus) ---
+    # Поддерживаем:
+    #   I.0 / O.15
+    #   I.Data.3 / O.Data.15
+    #   I.Ch14Data / O.Ch14Data
+    #   I.Ch[2].Data / O.Ch[2].Data
+    #   O.Data[1].0 / I.Data[3].15   ← FlexBus: [1] — слот, .0 — канал
 
-    # --- Распознавание форматов каналов ---
-    # ✅ Поддерживаются:
-    #   I.0, O.15
-    #   I.Ch14Data, O.Ch10Data
-    #   I.Ch[2].Data, O.Channel3Data
-    #   I.Data.3, O.Data.15
-    # 🚫 Игнорируются Fault, Status, Cfg и т.д.
+    flex_slot = None
+    point = None
+
+    # шаблон для разных форматов
     match = re.search(r"""
-        ^[IO]\.?                                  # Префикс I. или O.
-        (?:
-            # Вариант 1: I.0 / O.15
-            (?P<num1>\d{1,3})$
-          |
-            # Вариант 2: I.Ch14Data / O.Channel3Data / I.Ch[2].Data
-            (?:Ch(?:annel)?\[?(?P<num2>\d{1,3})\]?(?:Data|\.[Dd]ata)?)$
-          |
-            # Вариант 3: I.Data.3 / O.Data.15
-            [Dd]ata\.(?P<num3>\d{1,3})$
+        ^[IO]\.?(
+            (?P<num1>\d{1,3})$                            | # I.0
+            [Dd]ata\.(?P<num2>\d{1,3})$                   | # I.Data.3
+            [Dd]ata\[(?P<flex>\d{1,3})\]\.(?P<num3>\d{1,3})$ | # O.Data[1].0  ← FlexBus
+            (?:Ch(?:annel)?\[?(?P<num4>\d{1,3})\]?(?:Data|\.[Dd]ata)?)$  # I.Ch14Data / I.Ch[2].Data
         )
     """, path, re.IGNORECASE | re.VERBOSE)
 
@@ -302,27 +324,45 @@ def process_alias_tag(tag_name, alias, description, map_func, debug=False):
             print(f"  ⚠️  Skipped non-IO tag [{tag_name}] → {alias_mapped}")
         return False
 
-    channel_str = match.group("num1") or match.group("num2") or match.group("num3")
-    try:
-        point = int(channel_str)
-    except (ValueError, TypeError):
-        if debug:
-            print(f"  ❌ Invalid channel number in [{tag_name}] → {alias_mapped}")
-        return False
+    if match.group("flex"):
+        flex_slot = int(match.group("flex"))
+        point = int(match.group("num3"))
+        append_chass(chass, flex_slot)
 
-    # Исключаем служебные сигналы (Fault, Status, Config)
+    else:
+        point = int(
+            match.group("num1") or
+            match.group("num2") or
+            match.group("num4")
+        )
+
+    # 🚫 исключаем служебные поля
     if re.search(r"(Fault|Status|Cfg|Config)", path, re.IGNORECASE):
         if debug:
             print(f"  🚫 Skipped service tag [{tag_name}] → {alias_mapped}")
         return False
 
-    io_config[chass][slot][point] = tag_name
-    io_description[chass][slot][point] = description
+    # --- запоминаем ---
+    if flex_slot is not None:
+        key = flex_slot
+    else:
+        key = slot
+
+    try:
+        if io_config[chass][key][point]:
+            print(f"   Tag [{io_config[chass][key][point]}] replaced by [{tag_name}]")
+    except KeyError:
+        pass
+
+    io_config[chass][key][point] = tag_name
+    io_description[chass][key][point] = description
 
     if debug:
-        print(f"  ✅ Parsed [{tag_name}] → {chass}:{slot}:{point} ({path})")
+        fs = f" FlexSlot={flex_slot}" if flex_slot is not None else ""
+        print(f"  ✅ Parsed [{tag_name}] → {chass}:{slot}:{point}{fs} ({path})")
 
     return True
+
 
 
 
@@ -505,7 +545,7 @@ def write_xlsx(out_file_name):
         worksheet.write_string(row, 1, CHASSI, bold)
         row += 1
         size = 0
-        for slot_num in range(10):  # slot numbers
+        for slot_num in range(13):  # slot numbers
             size = max(
                 size,
                 write_slot(col_number(slot_num),
