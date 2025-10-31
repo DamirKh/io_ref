@@ -8,10 +8,10 @@ import argparse
 from pathlib import Path
 import xlsxwriter
 import l5x
+import re
 
 io_config = {}
 io_description = {}
-
 
 class Tag(object):
     Other, DI, DO, AI, AO, = 0, 1, 2, 3, 4
@@ -44,7 +44,6 @@ class Tag(object):
     def __str__(self):
         return self.name
 
-
 def RUS_comment_decoder(comment: str):
     """ Decode russian comments"""
     # $0422$0435$043a$0443$0449$0430$044f $0441$0442$0435$043f$0435$043d$044c $043e$0442$043a$0440$044b$0442$0438$044f, %
@@ -70,7 +69,6 @@ def RUS_comment_decoder(comment: str):
         pass
     return out
 
-
 def tag2kip(tag_name: str):  # TODO convert to class method
     kip = tag_name.removeprefix('i').removeprefix('o')
     if '_' in kip:
@@ -82,7 +80,6 @@ def tag2kip(tag_name: str):  # TODO convert to class method
         return out
     else:
         return kip
-
 
 def append_chass(chass_name: str, slot_num: int):
     global io_config
@@ -96,7 +93,6 @@ def append_chass(chass_name: str, slot_num: int):
         io_description[chass_name] = {}
     if slot_num not in io_description[chass_name]:
         io_description[chass_name][slot_num] = {}
-
 
 class n11mapping(object):
     def __init__(self, map_file_name):
@@ -119,7 +115,6 @@ class n11mapping(object):
             if point_address.startswith(n):
                 return point_address.replace(n, self._n11[n])
         return point_address
-
 
 def read_input_csv(filename, map_file_name=None, old_csv_version = False):
     global io_config
@@ -257,11 +252,6 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
     print(f"  ✅ Parsed successfully: {parsed_counter}")
     print(f"  ⚠️  Skipped (unrecognized format): {skipped_counter}")
 
-
-import re
-
-import re
-
 def process_alias_tag(tag_name, alias, description, map_func, debug=False):
     """Parse IO alias address (supports RIO, FlexBus, and short formats)."""
     global io_config, io_description
@@ -363,9 +353,6 @@ def process_alias_tag(tag_name, alias, description, map_func, debug=False):
 
     return True
 
-
-
-
 def write_table():
     global io_config
     # datetime.datetime.now().isoformat()
@@ -398,7 +385,6 @@ def write_table():
 
     print(ms)
 
-
 def write_table_compact():
     global io_config
     global io_description
@@ -429,7 +415,6 @@ def write_table_compact():
 └──┴─────────────────┘'''
     print(ms)
 
-
 def write_csv_cspt(sep=','):
     """
     write datas in csv format
@@ -452,7 +437,6 @@ Chassis{sep}Slot{sep}Point,Tagname
                 ms += f"""
 {CHASSI}{sep}{SLOT}{sep}{CHANNEL},{tag2kip(io_config[CHASSI][SLOT][CHANNEL])}"""
     print(ms)
-
 
 def write_xlsx(out_file_name):
     global io_config
@@ -580,7 +564,6 @@ def write_xlsx(out_file_name):
 
     workbook.read_only_recommended()
     workbook.close()
-
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
