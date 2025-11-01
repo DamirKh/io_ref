@@ -353,9 +353,8 @@ def process_alias_tag(tag_name, alias, description, map_func, debug=False):
 
     return True
 
-def write_table():
+def write_table(print_to_stdout = True):
     global io_config
-    # datetime.datetime.now().isoformat()
     ms = f"""Created {datetime.datetime.now().isoformat()}
 """
     project_chass = list(io_config.keys())
@@ -382,8 +381,9 @@ def write_table():
         ms += '''
 └──┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┘
 '''
-
-    print(ms)
+    if print_to_stdout:
+        print(ms)
+    return ms
 
 def write_table_compact():
     global io_config

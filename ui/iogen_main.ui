@@ -79,14 +79,17 @@
       <item row="4" column="0">
        <layout class="QHBoxLayout" name="horizontalLayout_5">
         <item>
-         <widget class="QPushButton" name="pushButton_6">
+         <widget class="QPushButton" name="pushButton_load">
           <property name="text">
            <string>Load</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_4">
+         <widget class="QPushButton" name="pushButton_preview">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
           <property name="text">
            <string>Preview</string>
           </property>
@@ -121,14 +124,14 @@
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_2">
       <item>
-       <widget class="QPushButton" name="pushButton_2">
+       <widget class="QPushButton" name="pushButton_selectOutDir">
         <property name="text">
          <string>XLSX save to:</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="lineEdit_2"/>
+       <widget class="QLineEdit" name="lineEdit_Out"/>
       </item>
      </layout>
     </item>
@@ -148,7 +151,7 @@
        </spacer>
       </item>
       <item>
-       <widget class="QPushButton" name="pushButton_5">
+       <widget class="QPushButton" name="pushButton_Save">
         <property name="text">
          <string>Save</string>
         </property>
