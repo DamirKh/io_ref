@@ -92,6 +92,54 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_preview.clicked.connect(self.preview)
         self.pushButton_selectOutDir.clicked.connect(self.onSelect_OutDir)
         self.pushButton_Save.clicked.connect(self.onSave)
+        self.pushButton_drop.clicked.connect(self.onDrop)
+
+    def onDrop(self):
+        """Сбрасывает все загруженные данные и очищает интерфейс"""
+
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение сброса данных",
+            "⚠ Все загруженные данные будут удалены.\nПродолжить?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            # --- Очистка данных в iogen ---
+            try:
+                if hasattr(iogen, "io_config"):
+                    iogen.io_config.clear()
+                if hasattr(iogen, "io_description"):
+                    iogen.io_description.clear()
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Ошибка очистки данных",
+                    f"❌ Не удалось сбросить данные:\n{e}",
+                )
+                self.statusbar.showMessage("Ошибка очистки данных")
+                return
+
+            # --- Очистка UI ---
+            # self._input_file_path = None
+            # self._map_file_path = None
+            # self.lineEdit.clear()
+            # self.lineEdit_3.clear()
+            # self.lineEdit_Out.clear()
+            # self.label.setText("No input file selected.")
+            # self.label_2.setText("No map file selected.")
+            self.textEdit_log.clear()
+
+            # --- Обновление статуса ---
+            self.statusbar.showMessage("✅ Данные сброшены")
+            QMessageBox.information(
+                self,
+                "Сброс завершён",
+                "✅ Все данные успешно сброшены.",
+            )
+        else:
+            self.statusbar.showMessage("Сброс отменён пользователем")
 
     def onSave(self):
         """Сохранение результата в XLSX-файл с проверками"""
@@ -241,6 +289,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # --- Запуск обработки в отдельном потоке ---
     def onLoadBtn(self):
+        if hasattr(iogen, "io_config") and len(iogen.io_config):
+            reply = QMessageBox.question(
+                self,
+                "Данные уже загружены",
+                "⚠ Если Вы загрузите данные еще раз - это приведет к затиранию уже загруженных данных\n Загрузить?",
+            )
+            if reply == QMessageBox.StandardButton.No:
+                self.statusbar.showMessage("Load aborted by user")
+                return
         if not self._input_file_path:
             print("⚠ Input file not selected!")
             return
@@ -307,7 +364,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.statusbar.showMessage("Map file not selected")
             self.label_2.setText("No file selected.")
-
 
     def onInputFileSelect(self):
         self.statusbar.showMessage("Select input file")
