@@ -13,6 +13,7 @@ import re
 io_config = {}
 io_description = {}
 
+
 class Tag(object):
     Other, DI, DO, AI, AO, = 0, 1, 2, 3, 4
     types = (Other, DI, DO, AI, AO,)
@@ -44,6 +45,7 @@ class Tag(object):
     def __str__(self):
         return self.name
 
+
 def RUS_comment_decoder(comment: str):
     """ Decode russian comments"""
     # $0422$0435$043a$0443$0449$0430$044f $0441$0442$0435$043f$0435$043d$044c $043e$0442$043a$0440$044b$0442$0438$044f, %
@@ -51,23 +53,24 @@ def RUS_comment_decoder(comment: str):
     if comment is None:
         return ""
     out = ''
-    pos=0
+    pos = 0
     try:
         while pos < len(comment):
             if comment[pos] == '$':
-                if comment[pos+1] == 'Q' or comment[pos+1] == 'N':
+                if comment[pos + 1] == 'Q' or comment[pos + 1] == 'N':
                     out += '\n'
                     pos += 2
                     continue
-                rus_symbol_code =  comment[pos+1:pos+5]
+                rus_symbol_code = comment[pos + 1:pos + 5]
                 out += chr(int(rus_symbol_code, base=16))
-                pos+=5
+                pos += 5
             else:
                 out += comment[pos]
-                pos +=1
+                pos += 1
     except IndexError:
         pass
     return out
+
 
 def tag2kip(tag_name: str):  # TODO convert to class method
     kip = tag_name.removeprefix('i').removeprefix('o')
@@ -81,6 +84,7 @@ def tag2kip(tag_name: str):  # TODO convert to class method
     else:
         return kip
 
+
 def append_chass(chass_name: str, slot_num: int):
     global io_config
     global io_description
@@ -93,6 +97,7 @@ def append_chass(chass_name: str, slot_num: int):
         io_description[chass_name] = {}
     if slot_num not in io_description[chass_name]:
         io_description[chass_name][slot_num] = {}
+
 
 class n11mapping(object):
     def __init__(self, map_file_name):
@@ -116,7 +121,8 @@ class n11mapping(object):
                 return point_address.replace(n, self._n11[n])
         return point_address
 
-def read_input_csv(filename, map_file_name=None, old_csv_version = False):
+
+def read_input_csv(filename, map_file_name=None, old_csv_version=False):
     global io_config
     global io_description
 
@@ -187,6 +193,7 @@ def read_input_csv(filename, map_file_name=None, old_csv_version = False):
 
         print(f'Total: {total_points_counter} points found')
 
+
 def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
     """Read tags from L5X XML file and fill io_config/io_description."""
     global io_config
@@ -205,15 +212,21 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
     total_points_counter = 0
     parsed_counter = 0
     skipped_counter = 0
+    map_counter = 0
 
-    # --- 2. Теги в программах ---
+    # --- 1. Теги в программах ---
     for prog in project.programs.names:
         for tag_name in project.programs[prog].tags.names:
             try:
                 tag = project.programs[prog].tags[tag_name]
-                alias = getattr(tag, 'alias_for', None)
-                if alias:
-                    alias = map_func(alias)
+                alias_source = getattr(tag, 'alias_for', None)
+                if alias_source:
+                    alias = map_func(alias_source)
+                    if alias != alias_source:
+                        map_counter += 1
+                else:
+                    continue
+
                 description = RUS_comment_decoder(getattr(tag, 'description', ""))
             except RuntimeError:
                 continue
@@ -226,16 +239,20 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
                     skipped_counter += 1
                 total_points_counter += 1
 
-    # --- 1. Контроллерные теги ---
+    # --- 2. Контроллерные теги ---
     for tag_name in project.controller.tags.names:
         # trap for debug
         if tag_name == 'XA_DC1':
             pass
         try:
             tag = project.controller.tags[tag_name]
-            alias = getattr(tag, 'alias_for', None)
-            if alias:
-                alias = map_func(alias)
+            alias_source = getattr(tag, 'alias_for', None)
+            if alias_source:
+                alias = map_func(alias_source)
+                if alias != alias_source:
+                    map_counter += 1
+            else:
+                continue
             description = RUS_comment_decoder(getattr(tag, 'description', ""))
         except RuntimeError:
             continue
@@ -251,6 +268,8 @@ def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
     print(f"\nTotal {total_points_counter} alias tags processed.")
     print(f"  ✅ Parsed successfully: {parsed_counter}")
     print(f"  ⚠️  Skipped (unrecognized format): {skipped_counter}")
+    print(f"  {map_counter} tags was mapped")
+
 
 def process_alias_tag(tag_name, alias, description, map_func, debug=False):
     """Parse IO alias address (supports RIO, FlexBus, and short formats)."""
@@ -285,8 +304,6 @@ def process_alias_tag(tag_name, alias, description, map_func, debug=False):
         if debug:
             print(f"  ❌ Skipped [{tag_name}] — invalid alias format: {alias_mapped}")
         return False
-
-
 
     # --- Распознавание каналов и слотов (включая FlexBus) ---
     # Поддерживаем:
@@ -353,7 +370,8 @@ def process_alias_tag(tag_name, alias, description, map_func, debug=False):
 
     return True
 
-def write_table(print_to_stdout = True):
+
+def write_table(print_to_stdout=True):
     global io_config
     ms = f"""Created {datetime.datetime.now().isoformat()}
 """
@@ -385,6 +403,7 @@ def write_table(print_to_stdout = True):
         print(ms)
     return ms
 
+
 def write_table_compact():
     global io_config
     global io_description
@@ -415,6 +434,7 @@ def write_table_compact():
 └──┴─────────────────┘'''
     print(ms)
 
+
 def write_csv_cspt(sep=','):
     """
     write datas in csv format
@@ -437,6 +457,7 @@ Chassis{sep}Slot{sep}Point,Tagname
                 ms += f"""
 {CHASSI}{sep}{SLOT}{sep}{CHANNEL},{tag2kip(io_config[CHASSI][SLOT][CHANNEL])}"""
     print(ms)
+
 
 def write_xlsx(out_file_name):
     global io_config
@@ -473,8 +494,6 @@ def write_xlsx(out_file_name):
     worksheet.write_string(1, 0, 'Original input file name')
     worksheet.write_string(1, 1, str(out_file_name))
 
-
-
     # ==================================================================================================================
     row = 3
 
@@ -485,13 +504,13 @@ def write_xlsx(out_file_name):
         return slot_number * 4 + 3
 
     def write_slot(_col, _row, slot_num, slot_data, descr_data={}):
-        worksheet.write_string(_row, _col+1, f'SLOT', slot_number_format)
-        worksheet.write_number(_row, _col+2, slot_num, slot_number_format)
-        worksheet.write_blank(_row, _col+3, '', slot_number_format)
+        worksheet.write_string(_row, _col + 1, f'SLOT', slot_number_format)
+        worksheet.write_number(_row, _col + 2, slot_num, slot_number_format)
+        worksheet.write_blank(_row, _col + 3, '', slot_number_format)
 
-        worksheet.write_blank(_row+1, _col+1, f'SLOT', slot_number_format)
-        worksheet.write_blank(_row+1, _col+2, slot_num, slot_number_format)
-        worksheet.write_blank(_row+1, _col+3, '', slot_number_format)
+        worksheet.write_blank(_row + 1, _col + 1, f'SLOT', slot_number_format)
+        worksheet.write_blank(_row + 1, _col + 2, slot_num, slot_number_format)
+        worksheet.write_blank(_row + 1, _col + 3, '', slot_number_format)
 
         worksheet.write_blank(_row, _col, '', ch_number_format)
         worksheet.write_blank(_row + 1, _col, '', ch_number_format)
@@ -499,28 +518,26 @@ def write_xlsx(out_file_name):
         if len(slot_data.keys()) == 0:
             max_channel = 15
         else:
-            max_channel = max( slot_data.keys() )
+            max_channel = max(slot_data.keys())
 
         if max_channel <= 15:
             max_channel = 15
         else:
             max_channel = 31
 
-        for Y in range(max_channel+1):
+        for Y in range(max_channel + 1):
 
-            worksheet.write_number(_row+Y+2, _col, Y, ch_number_format)
+            worksheet.write_number(_row + Y + 2, _col, Y, ch_number_format)
             tag = slot_data.get(Y, '')
             descr = descr_data.get(Y, '')
-            worksheet.write_string(_row+Y+2, _col+1, tag2kip(tag), content_format)
+            worksheet.write_string(_row + Y + 2, _col + 1, tag2kip(tag), content_format)
             if descr:
-                worksheet.write_comment(_row+Y+2, _col+1, descr.replace('$N', '\r'))
-
+                worksheet.write_comment(_row + Y + 2, _col + 1, descr.replace('$N', '\r'))
 
         worksheet.set_column(_col, _col, width=2.30)
-        worksheet.set_column(_col+1, _col+1, width=23)
+        worksheet.set_column(_col + 1, _col + 1, width=23)
 
         return max_channel
-
 
     # ic(project_chass)
     for CHASSI in project_chass:
@@ -546,7 +563,7 @@ def write_xlsx(out_file_name):
             # worksheet.write_blank(row, col_number(slot_num) + 2, '', slot_number_format)  # right to slot number
             # worksheet.write_blank(row, col_number(slot_num) + 3, '', slot_number_format)  # right to slot number
 
-        row += size+2
+        row += size + 2
     #     for CHANNEL in range(16):
     #         worksheet.write_number(row, 1, CHANNEL, ch_number_format)  # channel number
     #         for SLOT in range(0, 10):
@@ -564,6 +581,7 @@ def write_xlsx(out_file_name):
 
     workbook.read_only_recommended()
     workbook.close()
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -636,7 +654,7 @@ if __name__ == '__main__':
     if args.print:
         write_table()
     # write_table_compact()
-    #write_csv_cspt(sep=':')
+    # write_csv_cspt(sep=':')
     if not args.noxls:
         out_xlsx = input_path.with_suffix('.xlsx')
         write_xlsx(out_xlsx)

@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 import traceback
 
-from PyQt6.QtCore import QObject, pyqtSignal, QThread, QSettings, QByteArray
+from PyQt6.QtCore import QObject, pyqtSignal, QThread, QSettings, QByteArray, Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QDialog, QVBoxLayout, QTextEdit, \
     QPushButton
 from iogen_main import Ui_MainWindow
@@ -77,6 +77,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         sys.stdout = self.emitting_stream
         sys.stderr = self.emitting_stream
 
+
     def normalOutputWritten(self, text):
         """Добавляет текст в QTextEdit с переводами строк"""
         cursor = self.textEdit_log.textCursor()
@@ -93,6 +94,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_selectOutDir.clicked.connect(self.onSelect_OutDir)
         self.pushButton_Save.clicked.connect(self.onSave)
         self.pushButton_drop.clicked.connect(self.onDrop)
+        self.pushButton_wipeMap.clicked.connect(self.onWipeMap)
+
+    def onWipeMap(self):
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение сброса загруженной карты подстановок",
+            "⚠ Загруженная карта подстановок будет сброшена.\nПодстановки выполняться не будут.\nПродолжить?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._map_file_path = None
+            self.lineEdit_3.clear()
+            self.label_2.setText("No file selected.")
+            self.statusbar.showMessage("Map data wiped")
+            self.pushButton_3.setEnabled(True)
+            self.pushButton_wipeMap.setEnabled(False)
+        else:
+            self.statusbar.showMessage("Сброс карты подстановок отменён пользователем")
+
 
     def onDrop(self):
         """Сбрасывает все загруженные данные и очищает интерфейс"""
@@ -359,9 +380,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 f"<b>Type:</b> {os.path.splitext(filename)[1].upper()}<br>"
             )
 
+            self.pushButton_wipeMap.setEnabled(True)
+            self.pushButton_3.setEnabled(False)
             # --- Обновляем label ---
             self.label_2.setText(file_info_text)
         else:
+            self._map_file_path = None
             self.statusbar.showMessage("Map file not selected")
             self.label_2.setText("No file selected.")
 
