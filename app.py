@@ -166,6 +166,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.statusbar.showMessage("Сброс отменён пользователем")
 
+    def confirm_overwrite(self, filepath: str) -> bool:
+        """Проверяет, существует ли файл, и спрашивает подтверждение на перезапись."""
+        path = Path(filepath)
+        if not path.exists():
+            return True  # файла нет, можно записывать
+
+        reply = QMessageBox.question(
+            self,
+            "Файл уже существует",
+            f"Файл '{path.name}' уже существует в:\n{path.parent}\n\nПерезаписать?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            return True
+        else:
+            self.statusbar.showMessage("💡 Сохранение отменено пользователем")
+            return False
+
     def onSave(self):
         """Сохранение результата в XLSX-файл с проверками"""
         out_path_str = self.lineEdit_Out.text().strip()
@@ -216,6 +236,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             )
             self.statusbar.showMessage("Save aborted: permission denied")
             return
+
+        if not self.confirm_overwrite(out_path):
+            return  # пользователь отказался
 
         # --- Попытка записи XLSX ---
         try:
