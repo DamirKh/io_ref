@@ -95,6 +95,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_Save.clicked.connect(self.onSave)
         self.pushButton_drop.clicked.connect(self.onDrop)
         self.pushButton_wipeMap.clicked.connect(self.onWipeMap)
+        self.checkBox_useKip.checkStateChanged.connect(self.onUseKip)
+
+    def onUseKip(self, state: Qt.CheckState):
+        iogen.use_kip_tag = state is Qt.CheckState.Checked
 
     def onWipeMap(self):
         reply = QMessageBox.question(

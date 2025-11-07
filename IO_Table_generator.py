@@ -12,6 +12,7 @@ import re
 
 io_config = {}
 io_description = {}
+use_kip_tag = True
 
 
 class Tag(object):
@@ -72,7 +73,10 @@ def RUS_comment_decoder(comment: str):
     return out
 
 
-def tag2kip(tag_name: str):  # TODO convert to class method
+def tag2kip(tag_name: str):  #
+    global use_kip_tag
+    if not use_kip_tag:
+        return tag_name
     kip = tag_name.removeprefix('i').removeprefix('o')
     if '_' in kip:
         return kip
@@ -195,80 +199,116 @@ def read_input_csv(filename, map_file_name=None, old_csv_version=False):
 
 
 def read_input_l5x(l5x_path, map_file_name=None, test_run=False, debug=False):
-    """Read tags from L5X XML file and fill io_config/io_description."""
-    global io_config
-    global io_description
+    """
+    Parse alias tags from an L5X project and populate IO configuration tables.
 
-    print(f"Reading L5X XML file: {l5x_path}")
-    project = l5x.Project(l5x_path)
-    print(f"L5X project loaded: {project}")
+    Args:
+        l5x_path (str | Path): Path to the L5X (XML) project file.
+        map_file_name (str | None): Optional path to a substitution (mapping) file.
+        test_run (bool): If True, no data structures are modified (dry-run mode).
+        debug (bool): Enables verbose logging for troubleshooting.
 
+    Returns:
+        None
+    """
+
+    global io_config, io_description
+
+    print(f"📘 Reading L5X XML file: {l5x_path}")
+
+    # --- Load project ---
+    try:
+        project = l5x.Project(l5x_path)
+        print(f"✅ L5X project loaded: {project}")
+    except Exception as e:
+        print(f"❌ Failed to load L5X project: {e}")
+        return
+
+    # --- Load optional mapping file ---
     if map_file_name:
-        n11 = n11mapping(map_file_name)
-        map_func = n11.replace
+        try:
+            n11 = n11mapping(map_file_name)
+            map_func = n11.replace
+            print(f"🔄 Mapping file loaded: {map_file_name}")
+        except Exception as e:
+            print(f"⚠️  Failed to load mapping file '{map_file_name}': {e}")
+            map_func = lambda s: s
     else:
         map_func = lambda s: s
 
-    total_points_counter = 0
-    parsed_counter = 0
-    skipped_counter = 0
-    map_counter = 0
+    # --- Counters ---
+    total_points = parsed = skipped = mapped = 0
 
-    # --- 1. Теги в программах ---
-    for prog in project.programs.names:
-        for tag_name in project.programs[prog].tags.names:
+    # =======================================================================
+    # 1  Program tags
+    # =======================================================================
+    for prog_name in project.programs.names:
+        program = project.programs[prog_name]
+
+        for tag_name in program.tags.names:
             try:
-                tag = project.programs[prog].tags[tag_name]
-                alias_source = getattr(tag, 'alias_for', None)
-                if alias_source:
-                    alias = map_func(alias_source)
-                    if alias != alias_source:
-                        map_counter += 1
-                else:
+                tag = program.tags[tag_name]
+                alias_source = getattr(tag, "alias_for", None)
+                if not alias_source:
                     continue
 
-                description = RUS_comment_decoder(getattr(tag, 'description', ""))
-            except RuntimeError:
-                continue
-
-            if alias and ':' in alias:
-                ok = process_alias_tag(f"{prog}/{tag_name}", alias, description, map_func, debug)
-                if ok:
-                    parsed_counter += 1
-                else:
-                    skipped_counter += 1
-                total_points_counter += 1
-
-    # --- 2. Контроллерные теги ---
-    for tag_name in project.controller.tags.names:
-        # trap for debug
-        if tag_name == 'XA_DC1':
-            pass
-        try:
-            tag = project.controller.tags[tag_name]
-            alias_source = getattr(tag, 'alias_for', None)
-            if alias_source:
+                # Apply mapping substitution (if any)
                 alias = map_func(alias_source)
                 if alias != alias_source:
-                    map_counter += 1
-            else:
+                    mapped += 1
+
+                # Decode comment (convert possible Russian encoding issues)
+                description = RUS_comment_decoder(getattr(tag, "description", ""))
+
+                # Process alias tag
+                if ":" in alias:
+                    ok = process_alias_tag(
+                        f"{prog_name}/{tag_name}", alias, description, map_func, debug
+                    )
+                    parsed += int(ok)
+                    skipped += int(not ok)
+                    total_points += 1
+
+            except RuntimeError:
+                # Often raised by invalid tag structures
                 continue
-            description = RUS_comment_decoder(getattr(tag, 'description', ""))
+
+    # =======================================================================
+    # 2  Controller-level tags
+    # =======================================================================
+    for tag_name in project.controller.tags.names:
+        try:
+            tag = project.controller.tags[tag_name]
+            alias_source = getattr(tag, "alias_for", None)
+            if not alias_source:
+                continue
+
+            alias = map_func(alias_source)
+            if alias != alias_source:
+                mapped += 1
+
+            description = RUS_comment_decoder(getattr(tag, "description", ""))
+
+            if ":" in alias:
+                ok = process_alias_tag(tag_name, alias, description, map_func, debug)
+                parsed += int(ok)
+                skipped += int(not ok)
+                total_points += 1
+
         except RuntimeError:
             continue
 
-        if alias and ':' in alias:
-            ok = process_alias_tag(tag_name, alias, description, map_func, debug)
-            if ok:
-                parsed_counter += 1
-            else:
-                skipped_counter += 1
-            total_points_counter += 1
+    # =======================================================================
+    # Summary
+    # =======================================================================
+    print("\n📊 Parsing summary:")
+    print(f"  • Total alias tags processed: {total_points}")
+    print(f"  • ✅ Successfully parsed:     {parsed}")
+    print(f"  • ⚠️ Skipped (invalid fmt):   {skipped}")
+    print(f"  • 🔁 Mapped via map-file:     {mapped}")
 
-    print(f"\nTotal {total_points_counter} alias tags processed.")
-    print(f"  ✅ Parsed successfully: {parsed_counter}")
-    print(f"  ⚠️  Skipped (unrecognized format): {skipped_counter}")
-    print(f"  {map_counter} tags was mapped")
+    if test_run:
+        print("🧪 Test run complete — no data structures modified.")
 
 
 def process_alias_tag(tag_name, alias, description, map_func, debug=False):
