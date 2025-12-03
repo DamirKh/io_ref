@@ -12,6 +12,7 @@ import re
 
 io_config = {}
 io_description = {}
+io_base = {}
 use_kip_tag = True
 
 
@@ -92,6 +93,7 @@ def tag2kip(tag_name: str):  #
 def append_chass(chass_name: str, slot_num: int):
     global io_config
     global io_description
+    global io_base
     if chass_name not in io_config.keys():
         io_config[chass_name] = {}
     if slot_num not in io_config[chass_name]:
@@ -101,6 +103,11 @@ def append_chass(chass_name: str, slot_num: int):
         io_description[chass_name] = {}
     if slot_num not in io_description[chass_name]:
         io_description[chass_name][slot_num] = {}
+    # bad copy paste
+    if chass_name not in io_base.keys():
+        io_base[chass_name] = {}
+    if slot_num not in io_base[chass_name]:
+        io_base[chass_name][slot_num] = {}
 
 
 class n11mapping(object):
@@ -403,6 +410,7 @@ def process_alias_tag(tag_name, alias, description, map_func, debug=False):
 
     io_config[chass][key][point] = tag_name
     io_description[chass][key][point] = description
+    io_base[chass][key][point] = alias_mapped
 
     if debug:
         fs = f" FlexSlot={flex_slot}" if flex_slot is not None else ""
@@ -499,7 +507,7 @@ Chassis{sep}Slot{sep}Point,Tagname
     print(ms)
 
 
-def write_xlsx(out_file_name):
+def write_xlsx(out_file_name, save_base=False):
     global io_config
     print(f'xlsx writer selected. filename = {out_file_name}')
     workbook = xlsxwriter.Workbook(out_file_name)
@@ -543,7 +551,7 @@ def write_xlsx(out_file_name):
     def col_number(slot_number):
         return slot_number * 4 + 3
 
-    def write_slot(_col, _row, slot_num, slot_data, descr_data={}):
+    def write_slot(_col, _row, slot_num, slot_data, descr_data={}, base_data={}, save_base = False):
         worksheet.write_string(_row, _col + 1, f'SLOT', slot_number_format)
         worksheet.write_number(_row, _col + 2, slot_num, slot_number_format)
         worksheet.write_blank(_row, _col + 3, '', slot_number_format)
@@ -570,9 +578,12 @@ def write_xlsx(out_file_name):
             worksheet.write_number(_row + Y + 2, _col, Y, ch_number_format)
             tag = slot_data.get(Y, '')
             descr = descr_data.get(Y, '')
+            base = base_data.get(Y, '')
             worksheet.write_string(_row + Y + 2, _col + 1, tag2kip(tag), content_format)
             if descr:
                 worksheet.write_comment(_row + Y + 2, _col + 1, descr.replace('$N', '\r'))
+            if base and save_base:
+                worksheet.write_string(_row + Y + 2, _col + 2, base, content_format)
 
         worksheet.set_column(_col, _col, width=2.30)
         worksheet.set_column(_col + 1, _col + 1, width=23)
@@ -593,7 +604,9 @@ def write_xlsx(out_file_name):
                            row,
                            slot_num,
                            io_config[CHASSI].get(slot_num, {}),
-                           io_description[CHASSI].get(slot_num, {})
+                           io_description[CHASSI].get(slot_num, {}),
+                           io_base[CHASSI].get(slot_num, {}),
+                           save_base,
                            )
             )
             # worksheet.write_number(row, col_number(slot_num+1), slot_num, slot_number_format)

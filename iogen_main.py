@@ -44,6 +44,9 @@ class Ui_MainWindow(object):
         self.checkBox_useKip.setChecked(True)
         self.checkBox_useKip.setObjectName("checkBox_useKip")
         self.verticalLayout_2.addWidget(self.checkBox_useKip)
+        self.checkBox_saveBase = QtWidgets.QCheckBox(parent=self.centralwidget)
+        self.checkBox_saveBase.setObjectName("checkBox_saveBase")
+        self.verticalLayout_2.addWidget(self.checkBox_saveBase)
         spacerItem1 = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding)
         self.verticalLayout_2.addItem(spacerItem1)
         self.gridLayout_2.addLayout(self.verticalLayout_2, 9, 0, 1, 1)
@@ -105,12 +108,13 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "IO Table generator"))
         self.textEdit_log.setDocumentTitle(_translate("MainWindow", "Log"))
         self.pushButton_preview.setText(_translate("MainWindow", "Preview"))
         self.pushButton_load.setText(_translate("MainWindow", "Load"))
         self.pushButton_drop.setText(_translate("MainWindow", "Drop"))
         self.checkBox_useKip.setText(_translate("MainWindow", "Convert tag name to kip"))
+        self.checkBox_saveBase.setText(_translate("MainWindow", "Save base tag to XLSX"))
         self.label_2.setText(_translate("MainWindow", "Map file info here"))
         self.pushButton_wipeMap.setText(_translate("MainWindow", "Wipe map"))
         self.label.setText(_translate("MainWindow", "L5X Project File Info here"))
