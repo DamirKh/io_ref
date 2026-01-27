@@ -507,7 +507,7 @@ Chassis{sep}Slot{sep}Point,Tagname
     print(ms)
 
 
-def write_xlsx(out_file_name, save_base=False):
+def write_xlsx(out_file_name, save_base=False, save_descr_as_cell=False):
     global io_config
     print(f'xlsx writer selected. filename = {out_file_name}')
     workbook = xlsxwriter.Workbook(out_file_name)
@@ -581,7 +581,10 @@ def write_xlsx(out_file_name, save_base=False):
             base = base_data.get(Y, '')
             worksheet.write_string(_row + Y + 2, _col + 1, tag2kip(tag), content_format)
             if descr:
-                worksheet.write_comment(_row + Y + 2, _col + 1, descr.replace('$N', '\r'))
+                if save_descr_as_cell:
+                    worksheet.write_string(_row + Y + 2, _col + 3, descr.replace('$N', ' '))
+                else:
+                    worksheet.write_comment(_row + Y + 2, _col + 1, descr.replace('$N', '\r'))
             if base and save_base:
                 worksheet.write_string(_row + Y + 2, _col + 2, base, content_format)
 

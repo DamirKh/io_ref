@@ -242,7 +242,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # --- Попытка записи XLSX ---
         try:
-            iogen.write_xlsx(str(out_path), save_base=self.checkBox_saveBase.isChecked())
+            iogen.write_xlsx(str(out_path), save_base=self.checkBox_saveBase.isChecked(), save_descr_as_cell = self.checkBox_saveDescr.isChecked())
             QMessageBox.information(
                 self,
                 "Save Successful",
