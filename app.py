@@ -96,6 +96,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_drop.clicked.connect(self.onDrop)
         self.pushButton_wipeMap.clicked.connect(self.onWipeMap)
         self.checkBox_useKip.checkStateChanged.connect(self.onUseKip)
+        self.pushButton_save_as_module(self.onSaveAsModule)
+
+    def onSaveAsModule(self):
+        """Запись данных для Python"""
+        # --- Проверка наличия данных ---
+        if not hasattr(iogen, "io_config") or not len(iogen.io_config):
+            QMessageBox.warning(
+                self,
+                "Nothing to Save",
+                "⚠ Нет данных для сохранения. Сначала загрузите L5X и сформируйте таблицу.",
+            )
+            self.statusbar.showMessage("Save aborted: no data to save")
+            return
+        try:
+            compl = iogen.write_as_python()
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Select file to save data as Python source...",
+            self._default_dir,  # Default directory (пустая строка — домашний каталог пользователя)
+            "Python file (*.py);;All Files (*)",  # Расширенный фильтр
+        )
+        if filename:
+            with f=open(filename, "w"):
+                pas
+
+        else:
+            self.statusbar.showMessage("Python file not selected")
+
+
+
 
     def onUseKip(self, state: Qt.CheckState):
         iogen.use_kip_tag = state is Qt.CheckState.Checked
