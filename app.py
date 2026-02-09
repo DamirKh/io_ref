@@ -96,7 +96,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_drop.clicked.connect(self.onDrop)
         self.pushButton_wipeMap.clicked.connect(self.onWipeMap)
         self.checkBox_useKip.checkStateChanged.connect(self.onUseKip)
-        self.pushButton_save_as_module(self.onSaveAsModule)
+        self.pushButton_save_as_module.clicked.connect(self.onSaveAsModule)
 
     def onSaveAsModule(self):
         """Запись данных для Python"""
@@ -109,8 +109,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             )
             self.statusbar.showMessage("Save aborted: no data to save")
             return
-        try:
-            compl = iogen.write_as_python()
+        compl = iogen.write_as_python()
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Select file to save data as Python source...",
@@ -118,8 +117,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "Python file (*.py);;All Files (*)",  # Расширенный фильтр
         )
         if filename:
-            with f=open(filename, "w"):
-                pas
+            # with f=open(filename, "w"):
+            #     pas
+            pass
 
         else:
             self.statusbar.showMessage("Python file not selected")
