@@ -117,9 +117,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "Python file (*.py);;All Files (*)",  # Расширенный фильтр
         )
         if filename:
-            # with f=open(filename, "w"):
-            #     pas
-            pass
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(compl)
+            self.statusbar.showMessage(f"✅ Python file saved to: {filename}")
 
         else:
             self.statusbar.showMessage("Python file not selected")

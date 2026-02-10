@@ -500,13 +500,13 @@ def write_as_python():
         for SLOT in io_config[CHASSI].keys():
             ms += f"""
 ## ╒═══════════════════╕
-## │     SLOT {SLOT:02}      │
+## │      SLOT {SLOT:02}      │
 ## └───────────────────┘"""
             for CHANNEL in io_config[CHASSI][SLOT].keys():
                 tag = io_config[CHASSI][SLOT][CHANNEL]
                 base_tag = io_base[CHASSI][SLOT][CHANNEL]
                 descr = io_description.get(CHASSI, {}).get(SLOT, {}).get(CHANNEL, '')
-                ms += f"""\n{tag: >17} = '{base_tag}'  #{descr}"""
+                ms += f"""\n{tag} = '{base_tag}'  #{descr}"""
 
     return ms
 
