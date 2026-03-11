@@ -1,3 +1,4 @@
 xlsxwriter
+PyYAML
 git+https://github.com/DamirKh/l5x.git@master#egg=l5x
 PyQt6==6.7.1
