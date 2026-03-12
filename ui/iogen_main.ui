@@ -242,6 +242,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="pushButton_save_Lua">
+        <property name="text">
+         <string>Save IO as Lua table</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <spacer name="horizontalSpacer">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>

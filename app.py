@@ -98,6 +98,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.checkBox_useKip.checkStateChanged.connect(self.onUseKip)
         self.pushButton_save_as_module.clicked.connect(self.onSaveAsModule)
         self.pushButton_save_YAML.clicked.connect((self.onSaveAsYaml))
+        self.pushButton_save_Lua.clicked.connect((self.onSaveAsLua))
 
     def onSaveAsModule(self):
         """Запись данных для Python"""
@@ -159,6 +160,39 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.statusbar.showMessage("YAML file not selected")
 
+    def onSaveAsLua(self):
+        """Запись Lua table"""
+        # --- Проверка наличия данных ---
+        if not hasattr(iogen, "io_config") or not len(iogen.io_config):
+            QMessageBox.warning(
+                self,
+                "Nothing to Save",
+                "⚠ Нет данных для сохранения. Сначала загрузите L5X и сформируйте таблицу.",
+            )
+            self.statusbar.showMessage("Save aborted: no data to save")
+            return
+        try:
+            compl = iogen.write_io_map_lua()
+        except Exception as e:
+            print(e)
+            QMessageBox.warning(
+                self,
+                "Error saving as Lua table",
+                str(e),
+            )
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Select file to save data as Lua table",
+            self._default_dir,  # Default directory (пустая строка — домашний каталог пользователя)
+            "Lua (*.lua);;All Files (*)",  # Расширенный фильтр
+        )
+        if filename:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(compl)
+            self.statusbar.showMessage(f"✅ Lua table saved to: {filename}")
+
+        else:
+            self.statusbar.showMessage("Lua file not selected")
 
 
     def onUseKip(self, state: Qt.CheckState):
